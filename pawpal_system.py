@@ -25,11 +25,13 @@ class Task:
 
     def is_higher_priority_than(self, other: "Task") -> bool:
         """Return True if this task outranks `other` for scheduling order."""
-        raise NotImplementedError
+        return PRIORITY_ORDER.get(self.priority, 0) > PRIORITY_ORDER.get(
+            other.priority, 0
+        )
 
     def mark_done(self) -> None:
         """Mark this task as completed."""
-        raise NotImplementedError
+        self.done = True
 
 
 @dataclass
@@ -43,15 +45,15 @@ class Pet:
 
     def add_task(self, task: Task) -> None:
         """Attach a care task to this pet."""
-        raise NotImplementedError
+        self.tasks.append(task)
 
     def remove_task(self, task: Task) -> None:
         """Remove a care task from this pet."""
-        raise NotImplementedError
+        self.tasks.remove(task)
 
     def get_tasks(self) -> list[Task]:
         """Return this pet's care tasks."""
-        raise NotImplementedError
+        return self.tasks
 
 
 @dataclass
@@ -65,15 +67,22 @@ class Owner:
 
     def add_pet(self, pet: Pet) -> None:
         """Register a pet under this owner."""
-        raise NotImplementedError
+        self.pets.append(pet)
 
     def get_pets(self) -> list[Pet]:
         """Return the owner's pets."""
-        raise NotImplementedError
+        return self.pets
 
     def set_available_time(self, minutes: int) -> None:
         """Set how many minutes the owner has available today."""
-        raise NotImplementedError
+        self.available_minutes = minutes
+
+    def get_all_tasks(self) -> list[Task]:
+        """Return every task across all of the owner's pets, flattened."""
+        tasks: list[Task] = []
+        for pet in self.pets:
+            tasks.extend(pet.get_tasks())
+        return tasks
 
 
 @dataclass
@@ -103,6 +112,7 @@ class Scheduler:
         available_minutes: int = 0,
         preferences: dict | None = None,
     ) -> None:
+        """Create a scheduler for the given tasks, time budget, and preferences."""
         self.tasks = tasks or []
         self.available_minutes = available_minutes
         self.preferences = preferences or {}
@@ -120,9 +130,5 @@ class Scheduler:
         raise NotImplementedError
 
     def explain(self) -> str:
-        """Explain why tasks were included or skipped.
-
-        The returned text is also stored on the produced DailyPlan
-        (DailyPlan.reasoning) so the plan and its explanation stay in sync.
-        """
+        """Explain why tasks were included or skipped (also stored on DailyPlan.reasoning)."""
         raise NotImplementedError
