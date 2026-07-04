@@ -102,21 +102,41 @@ After completing:  Biscuit has 5 tasks.
 
 ## 🧪 Testing PawPal+
 
+Run the full test suite from the project root:
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+### What the tests cover
+
+The suite (`tests/test_pawpal.py`, 24 tests) verifies the core scheduling logic plus its edge cases:
+
+- **Sorting correctness** — tasks are returned in chronological order regardless of entry order, and untimed tasks fall to the end of the day.
+- **Recurrence logic** — completing a `daily` task marks it done and auto-queues a fresh instance for the following day; `weekly` advances a week; `once` and unknown frequencies never recur; an undated recurring task anchors off today.
+- **Conflict detection** — overlapping time windows are flagged (including *identical* start times), each overlapping pair is reported once, and done/untimed/malformed-time tasks are safely excluded without crashing.
+- **Filtering** — tasks can be narrowed by completion status and by pet.
+- **Edge cases** — empty schedulers, pets with no tasks, single tasks, malformed time strings, and zero-duration tasks are all handled without raising.
+
+### Successful test run
 
 ```
-tests/test_pawpal.py ...............                                     [100%]
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/ogenna/ai110-module2show-pawpal-starter
+plugins: anyio-4.14.1
+collected 24 items
 
-============================== 15 passed in 0.02s ==============================
+tests/test_pawpal.py ........................                            [100%]
+
+============================== 24 passed in 0.02s ==============================
 ```
+
+### Confidence Level
+
+**⭐⭐⭐⭐☆ (4 / 5)**
+
+All 24 tests pass, covering every implemented behavior — sorting, filtering, recurrence, and conflict detection — along with their edge cases (empty inputs, malformed times, exact-time ties). Confidence is held at 4 rather than 5 because several `Scheduler`/`DailyPlan` methods (`generate_plan`, `filter_by_time`, `total_time`, `summary`, `explain`) are not yet implemented and therefore not yet tested; reliability of the end-to-end daily plan can't be fully vouched for until those are built and covered.
 
 ## 📐 Smarter Scheduling
 

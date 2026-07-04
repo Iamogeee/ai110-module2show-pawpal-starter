@@ -162,3 +162,99 @@ def test_conflict_ignores_untimed_and_done_tasks():
         ]
     )
     assert scheduler.detect_conflicts() == []
+
+
+def test_detect_conflicts_flags_duplicate_times():
+    """Two active tasks scheduled at the exact same time are flagged."""
+    scheduler = Scheduler(
+        tasks=[
+            Task("Walk", 30, "high", "walk", scheduled_time="08:00", pet_name="Biscuit"),
+            Task("Feeding", 10, "high", "feeding", scheduled_time="08:00", pet_name="Mittens"),
+        ]
+    )
+    warnings = scheduler.detect_conflicts()
+    assert len(warnings) == 1
+    assert "Walk" in warnings[0] and "Feeding" in warnings[0]
+
+
+def test_detect_conflicts_reports_each_overlapping_pair_once():
+    """Three tasks all overlapping the same window yield three pairwise warnings."""
+    scheduler = Scheduler(
+        tasks=[
+            Task("Walk", 60, "high", "walk", scheduled_time="08:00"),      # 08:00-09:00
+            Task("Feeding", 60, "high", "feeding", scheduled_time="08:15"),  # 08:15-09:15
+            Task("Meds", 60, "high", "meds", scheduled_time="08:30"),       # 08:30-09:30
+        ]
+    )
+    # All three windows mutually overlap → pairs (Walk,Feeding), (Walk,Meds), (Feeding,Meds).
+    assert len(scheduler.detect_conflicts()) == 3
+
+
+# --- Edge cases: empty and single-task inputs -------------------------------
+
+
+def test_empty_scheduler_is_safe():
+    """A scheduler with no tasks sorts, filters, and checks conflicts without crashing."""
+    scheduler = Scheduler(tasks=[])
+    assert scheduler.sort_by_time() == []
+    assert scheduler.filter_by_status(done=False) == []
+    assert scheduler.filter_by_pet("Nobody") == []
+    assert scheduler.detect_conflicts() == []
+
+
+def test_pet_with_no_tasks():
+    """A pet that has had no tasks added reports an empty task list."""
+    pet = Pet("Ghost", "Cat")
+    assert pet.get_tasks() == []
+
+
+def test_single_task_has_no_conflicts():
+    """A lone timed task cannot conflict with anything."""
+    scheduler = Scheduler(
+        tasks=[Task("Walk", 30, "high", "walk", scheduled_time="08:00")]
+    )
+    assert scheduler.detect_conflicts() == []
+
+
+# --- Edge cases: malformed / boundary times ---------------------------------
+
+
+def test_malformed_time_does_not_crash_conflict_detection():
+    """Garbage scheduled_time values are treated as untimed, never raising."""
+    scheduler = Scheduler(
+        tasks=[
+            Task("Bad hour", 30, "high", "walk", scheduled_time="25:99"),
+            Task("No colon", 30, "high", "walk", scheduled_time="0800"),
+            Task("Walk", 30, "high", "walk", scheduled_time="08:00"),
+        ]
+    )
+    # Malformed times fall out of the timed set, so nothing overlaps the walk.
+    assert scheduler.detect_conflicts() == []
+
+
+def test_zero_duration_task_does_not_conflict_at_shared_start():
+    """A zero-minute task starting when another does has an empty window, so no overlap."""
+    scheduler = Scheduler(
+        tasks=[
+            Task("Instant note", 0, "low", "meds", scheduled_time="08:00"),
+            Task("Walk", 30, "high", "walk", scheduled_time="08:00"),
+        ]
+    )
+    assert scheduler.detect_conflicts() == []
+
+
+# --- Edge cases: recurrence ------------------------------------------------
+
+
+def test_undated_daily_task_anchors_off_today():
+    """A daily task with no due_date rolls forward from today."""
+    task = Task("Feeding", 10, "high", "feeding", frequency="daily")  # due_date=None
+    nxt = task.next_occurrence()
+    assert nxt.due_date == date.today() + timedelta(days=1)
+    assert nxt.done is False
+
+
+def test_unknown_frequency_does_not_recur():
+    """An unrecognized frequency behaves like a one-off (no next occurrence)."""
+    task = Task("Monthly bath", 30, "low", "grooming", frequency="monthly")
+    assert task.next_occurrence() is None
