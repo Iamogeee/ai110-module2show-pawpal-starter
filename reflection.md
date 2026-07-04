@@ -51,6 +51,14 @@ I considered, but deliberately did **not** make, two other changes to avoid unne
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
 
+**Conflict detection *warns* about overlaps rather than resolving them, and does so with a naive O(n²) pairwise scan over same-day "HH:MM" times.** `Scheduler.detect_conflicts()` compares every pair of timed, not-done tasks and checks whether their `[start, start + duration)` windows overlap (`start_a < end_b and start_b < end_a`). I deliberately chose *overlap* detection over the simpler *exact-time-match* check, because a 30-minute 08:00 walk genuinely clashes with an 08:10 feeding even though the start times differ — exact matching would miss that. The tradeoffs I accepted in exchange:
+
+- **Warn, don't auto-resolve.** The scheduler surfaces a human-readable warning and leaves the decision to the owner rather than silently reshuffling or dropping a task. For a pet-care assistant that's the safer default — automatically bumping a medication because it overlapped a walk could be harmful, and the owner has context the app doesn't.
+- **O(n²) pairwise scan.** Comparing all pairs is quadratic, but a realistic day has well under ~20 tasks, so this is effectively instant; a sweep-line algorithm would be faster asymptotically but adds complexity that buys nothing at this scale.
+- **Single-day, string-based times.** Times are stored as `"HH:MM"` strings converted to minutes-since-midnight, which assumes every task falls within one calendar day (a task crossing midnight would compute a misleading window). That holds for daily pet care and keeps sorting trivial (strings sort chronologically), so real `datetime` objects would be over-engineering here.
+
+These are all reasonable because PawPal+ optimizes for a single owner's daily routine — small task counts, within-day times, and a human kept in the loop — not for large-scale or multi-day calendar scheduling.
+
 ---
 
 ## 3. AI Collaboration

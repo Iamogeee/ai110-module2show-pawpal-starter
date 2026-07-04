@@ -17,6 +17,7 @@ classDiagram
         +str breed
         +List~Task~ tasks
         +add_task(task) void
+        +complete_task(task) Task
         +remove_task(task) void
         +get_tasks() List~Task~
     }
@@ -27,15 +28,23 @@ classDiagram
         +str priority
         +str category
         +bool done
+        +str scheduled_time
+        +str pet_name
+        +str frequency
+        +date due_date
         +is_higher_priority_than(other) bool
         +mark_done() void
+        +next_occurrence() Task
     }
 
     class Scheduler {
         +List~Task~ tasks
         +int available_minutes
         +dict preferences
-        +sort_tasks() List~Task~
+        +sort_by_time() List~Task~
+        +filter_by_status(done) List~Task~
+        +filter_by_pet(pet_name) List~Task~
+        +detect_conflicts() List~str~
         +filter_by_time() List~Task~
         +generate_plan() DailyPlan
         +explain() str

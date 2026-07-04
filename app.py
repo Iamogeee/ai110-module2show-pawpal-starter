@@ -1,5 +1,7 @@
 import streamlit as st
 
+from pawpal_system import Owner, Pet, Task
+
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
 st.title("🐾 PawPal+")
@@ -38,35 +40,80 @@ At minimum, your system should:
 
 st.divider()
 
-st.subheader("Quick Demo Inputs (UI only)")
-owner_name = st.text_input("Owner name", value="Jordan")
-pet_name = st.text_input("Pet name", value="Mochi")
-species = st.selectbox("Species", ["dog", "cat", "other"])
+st.subheader("Owner")
 
-st.markdown("### Tasks")
-st.caption("Add a few tasks. In your final version, these should feed into your scheduler.")
+# One Owner object lives in session_state so it survives Streamlit reruns.
+if "owner" not in st.session_state:
+    st.session_state.owner = Owner(name="Jordan")
 
-if "tasks" not in st.session_state:
-    st.session_state.tasks = []
+owner = st.session_state.owner
+owner.name = st.text_input("Owner name", value=owner.name)
 
-col1, col2, col3 = st.columns(3)
-with col1:
-    task_title = st.text_input("Task title", value="Morning walk")
-with col2:
-    duration = st.number_input("Duration (minutes)", min_value=1, max_value=240, value=20)
-with col3:
-    priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
+st.markdown("### Add a Pet")
+pet_col1, pet_col2 = st.columns(2)
+with pet_col1:
+    pet_name = st.text_input("Pet name", value="Mochi")
+with pet_col2:
+    species = st.selectbox("Species", ["dog", "cat", "other"])
 
-if st.button("Add task"):
-    st.session_state.tasks.append(
-        {"title": task_title, "duration_minutes": int(duration), "priority": priority}
-    )
+if st.button("Add pet"):
+    # Owner.add_pet() is the method that handles the new pet's data.
+    owner.add_pet(Pet(name=pet_name, species=species))
 
-if st.session_state.tasks:
-    st.write("Current tasks:")
-    st.table(st.session_state.tasks)
+pets = owner.get_pets()
+if not pets:
+    st.info("No pets yet. Add one above.")
+
+st.markdown("### Add a Task")
+if pets:
+    # Pick which pet the task belongs to (tasks live on a Pet, per the UML).
+    pet_names = [pet.name for pet in pets]
+    selected_pet_name = st.selectbox("For which pet?", pet_names)
+    selected_pet = pets[pet_names.index(selected_pet_name)]
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        task_title = st.text_input("Task title", value="Morning walk")
+    with col2:
+        duration = st.number_input("Duration (minutes)", min_value=1, max_value=240, value=20)
+    with col3:
+        priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
+    with col4:
+        category = st.selectbox(
+            "Category", ["walk", "feeding", "meds", "grooming", "enrichment"]
+        )
+
+    if st.button("Add task"):
+        # Pet.add_task() attaches a real Task object to the chosen pet.
+        selected_pet.add_task(
+            Task(
+                name=task_title,
+                duration_minutes=int(duration),
+                priority=priority,
+                category=category,
+            )
+        )
 else:
-    st.info("No tasks yet. Add one above.")
+    st.caption("Add a pet first, then you can give it tasks.")
+
+# Read the objects back out of the owner and render them.
+for pet in owner.get_pets():
+    st.write(f"**{pet.name}** ({pet.species})")
+    tasks = pet.get_tasks()
+    if tasks:
+        st.table(
+            [
+                {
+                    "task": t.name,
+                    "duration_minutes": t.duration_minutes,
+                    "priority": t.priority,
+                    "category": t.category,
+                }
+                for t in tasks
+            ]
+        )
+    else:
+        st.caption("No tasks yet for this pet.")
 
 st.divider()
 
