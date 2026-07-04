@@ -46,6 +46,10 @@ I considered, but deliberately did **not** make, two other changes to avoid unne
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
 - How did you decide which constraints mattered most?
 
+The scheduler currently reasons over four constraints: each task's **scheduled time** (used both to order the day and to detect overlaps), its **priority** (ranked through the `PRIORITY_ORDER` constant), its **completion status** (done tasks drop out of conflict checks and can be filtered away), and which **pet** it belongs to (so a busy day can be narrowed one animal at a time). The owner's **time budget** (`available_minutes`) is captured and passed into the `Scheduler`, but the budget-fitting step (`filter_by_time`/`generate_plan`) is designed and not yet implemented.
+
+I decided **time and priority** matter most, because they answer the two questions a pet owner actually asks — "when does this happen?" and "if I can't do everything, what comes first?" Conflict detection came next, since a schedule that quietly double-books the owner is worse than useless. Preferences were deliberately left as a lower-priority extension point rather than a core constraint.
+
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
@@ -68,10 +72,35 @@ These are all reasonable because PawPal+ optimizes for a single owner's daily ro
 - How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
 - What kinds of prompts or questions were most helpful?
 
+I used my AI coding assistant across every phase: brainstorming the UML, generating the class skeletons from that diagram, drafting the test suite, reviewing `pawpal_system.py` for missing edge cases, wiring the `Scheduler` into the Streamlit UI, and finally regenerating the UML to match the finished code.
+
+The features that were **most effective for building the scheduler** were:
+
+- **Whole-file context review** — attaching `pawpal_system.py` and asking "what edge cases am I missing?" or "what UML updates should I make based on this implementation?" turned the AI into a second reviewer that could see the whole design at once, not just the line I was editing.
+- **Test generation** — the assistant drafted a broad suite (sorting, recurrence, conflict detection, plus edge cases like empty inputs, malformed times, and exact-time ties) far faster than I would have enumerated them by hand.
+- **Running the code and reading the output** — the assistant didn't just suggest code; it ran `pytest` and `python main.py`, launched the Streamlit app, and fed the real output back into the next decision. That closed the loop between "suggested" and "verified."
+
+The most helpful prompts were **specific and verification-oriented** — naming the file, stating the goal, and asking the AI to check its work against real output — rather than open-ended "write my scheduler" requests.
+
 **b. Judgment and verification**
 
 - Describe one moment where you did not accept an AI suggestion as-is.
 - How did you evaluate or verify what the AI suggested?
+
+**One example of a suggestion I modified to keep the design clean:** during the code review the assistant flagged that `available_minutes` and `preferences` were duplicated on both `Owner` and `Scheduler` and could be collapsed into one. I rejected that simplification on purpose — the duplication is what keeps the `Scheduler` decoupled from `Owner`, so it can be unit-tested with a plain list of tasks and a number, without constructing a whole object graph. Keeping the two apart made the 24-test suite simple to write.
+
+A second, smaller moment: while writing a conflict-detection test, the AI-drafted assertion expected *three* overlapping pairs, but the run produced *two* — because two of the tasks didn't actually overlap. Rather than "fix" the working code to match the test, I corrected the test's assumption. The lesson was that a failing test is not automatically the code's fault.
+
+I evaluated AI suggestions primarily by **running things**: `pytest` (all 24 tests green), `python main.py` (checking the printed schedule matched what I expected), and launching the Streamlit app to confirm the UI behaved. Code I couldn't verify by running, I read line by line against the UML before accepting.
+
+**c. AI strategy: sessions and being the lead architect**
+
+- How did using separate chat sessions for different phases help you stay organized?
+- What did you learn about being the "lead architect" when collaborating with powerful AI tools?
+
+**Separate chat sessions per phase kept each conversation's context tight.** Design, implementation, and this finalization phase each had their own session, so the AI's suggestions stayed relevant to the goal in front of me instead of dragging in stale assumptions from an earlier step. A design session could stay abstract (classes, responsibilities, relationships) without the AI prematurely writing code; an implementation session could focus on one method at a time; and the finalization session could concentrate on tests, docs, and reconciling the UML. It also made each session's history easy to revisit later — the git commits line up with the phase boundaries.
+
+**On being the "lead architect":** the biggest takeaway is that a powerful AI tool shifts my job from *writing* code to *deciding* about code. The AI is excellent at proposing, generating, and executing quickly — but it will happily add complexity (extra fields, `datetime` refactors, collapsed abstractions) that I don't need. My value was in the judgment calls: holding the line on the data/logic/output separation, choosing "warn, don't auto-resolve" for conflicts, and rejecting simplifications that would have hurt testability. The AI accelerated the work enormously, but the design decisions, the verification, and the "no, keep it simple" were mine to own. The tool proposes; the architect disposes.
 
 ---
 
@@ -82,10 +111,18 @@ These are all reasonable because PawPal+ optimizes for a single owner's daily ro
 - What behaviors did you test?
 - Why were these tests important?
 
+The 24-test suite (`tests/test_pawpal.py`) covers the four core behaviors plus their edge cases: **sorting** (chronological order regardless of entry order, untimed tasks last), **recurrence** (a completed daily task auto-queues tomorrow's instance; weekly advances a week; `once` and unknown frequencies never recur), **conflict detection** (overlapping and *identical* start times flagged, each pair reported once, done/untimed/malformed-time tasks safely ignored), and **filtering** (by pet and by status). Edge cases include empty schedulers, pets with no tasks, single tasks, garbage time strings, and zero-duration tasks.
+
+These mattered because they are exactly the behaviors a user would notice if they broke — a mis-sorted day, a missed medication conflict, or a crash on a typo'd time would all destroy trust in the app. Testing the edge cases in particular pins down the "never crash, just warn" contract the scheduler promises.
+
 **b. Confidence**
 
 - How confident are you that your scheduler works correctly?
 - What edge cases would you test next if you had more time?
+
+I'm at about **4 out of 5**. Every implemented behavior is covered and passing, so I'm confident in sorting, filtering, recurrence, and conflict detection. I'm holding back the last star because `generate_plan`, `filter_by_time`, `total_time`, `summary`, and `explain` are not yet implemented, so the end-to-end daily plan can't be fully vouched for.
+
+With more time I'd test: the **time-budget fitting** logic once implemented (budget of 0, a single task longer than the whole budget, budget exactly equal to total task time), **priority tie-breaking** when two tasks share a start time, and **midnight-crossing** tasks, which the current within-day time model doesn't handle.
 
 ---
 
@@ -95,10 +132,16 @@ These are all reasonable because PawPal+ optimizes for a single owner's daily ro
 
 - What part of this project are you most satisfied with?
 
+I'm most satisfied with the **clean separation between data (Owner/Pet/Task), logic (Scheduler), and output (DailyPlan)**. That decision paid off everywhere: the scheduler was trivial to unit-test in isolation, the Streamlit UI just calls the same methods the CLI demo does, and adding conflict detection and recurrence didn't require touching the UI at all. The 24 passing tests are a close second — they gave me the confidence to refactor freely.
+
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
 
+I'd implement the pieces still stubbed out — `generate_plan`, `filter_by_time`, `total_time`, `summary`, and `explain` — so the app produces a real time-budgeted daily plan with a human-readable justification, not just a sorted list. I'd also move from `"HH:MM"` strings to real `datetime`/`time` objects so tasks can cross midnight and so priority can cleanly break ties between same-time tasks.
+
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+
+The most important thing I learned is that **with a powerful AI assistant, the scarce skill is judgment, not typing.** The AI could generate classes, tests, and UI faster than I could review them — so my real job was owning the architecture: keeping the design simple, deciding which AI suggestions to accept, and verifying everything by actually running it. Good structure (the data/logic/output split) plus good verification (tests and real runs) is what let me move fast *and* trust the result.
