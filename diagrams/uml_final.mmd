@@ -1,0 +1,70 @@
+classDiagram
+    %% PawPal+ final class diagram — reflects the implemented logic layer
+    %% in pawpal_system.py (updated from diagrams/uml_draft.mmd).
+
+    class Owner {
+        +str name
+        +int available_minutes
+        +dict preferences
+        +List~Pet~ pets
+        +add_pet(pet) void
+        +get_pets() List~Pet~
+        +set_available_time(minutes) void
+        +get_all_tasks() List~Task~
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +str breed
+        +List~Task~ tasks
+        +add_task(task) void
+        +complete_task(task) Task|None
+        +remove_task(task) void
+        +get_tasks() List~Task~
+    }
+
+    class Task {
+        +str name
+        +int duration_minutes
+        +str priority
+        +str category
+        +bool done
+        +str scheduled_time
+        +str pet_name
+        +str frequency
+        +date due_date
+        +is_higher_priority_than(other) bool
+        +mark_done() void
+        +next_occurrence() Task|None
+    }
+
+    class Scheduler {
+        +List~Task~ tasks
+        +int available_minutes
+        +dict preferences
+        +sort_by_time() List~Task~
+        +filter_by_status(done) List~Task~
+        +filter_by_pet(pet_name) List~Task~
+        +detect_conflicts() List~str~
+        +filter_by_time() List~Task~
+        +generate_plan() DailyPlan
+        +explain() str
+        -_window(task) tuple|None
+    }
+
+    class DailyPlan {
+        +date date
+        +List~Task~ scheduled_tasks
+        +List~Task~ skipped_tasks
+        +str reasoning
+        +total_time() int
+        +summary() str
+    }
+
+    Owner "1" --> "*" Pet : owns
+    Pet "1" --> "*" Task : has
+    Owner ..> Task : aggregates via get_all_tasks()
+    Scheduler ..> Task : schedules
+    Scheduler ..> DailyPlan : produces
+    DailyPlan "1" --> "*" Task : contains

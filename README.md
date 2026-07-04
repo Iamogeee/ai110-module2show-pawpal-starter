@@ -170,6 +170,18 @@ warns rather than auto-resolving, leaving the final call to the owner.
 `daily` or `weekly`, `Task.next_occurrence()` builds a not-done copy with its `due_date`
 advanced by the right `timedelta`, which `complete_task` adds back to the pet.
 
+## 📐 System Architecture (UML)
+
+The final class diagram for the logic layer lives at
+[`diagrams/uml_final.mmd`](diagrams/uml_final.mmd) (Mermaid source):
+
+![PawPal+ UML class diagram](diagrams/uml_final.png)
+
+- **Owner → Pet → Task** is the ownership chain; `Owner.get_all_tasks()` flattens
+  every pet's tasks into one list (the `Owner ..> Task` dependency).
+- **Scheduler** operates over that flat task list — sorting, filtering, and conflict
+  detection (`_window()` is its private time-window helper) — and produces a **DailyPlan**.
+
 ## 📸 Demo Walkthrough
 
 Describe your app in numbered steps so a reader can follow along without watching a video:
