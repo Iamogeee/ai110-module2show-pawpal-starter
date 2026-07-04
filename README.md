@@ -22,6 +22,28 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## ✨ Features
+
+PawPal+ implements the following scheduling algorithms in `pawpal_system.py` and
+surfaces them through both a CLI demo (`main.py`) and a Streamlit UI (`app.py`):
+
+- **⏰ Sorting by time** — `Scheduler.sort_by_time()` orders the day's tasks
+  chronologically (earliest-first). Times are stored as zero-padded `"HH:MM"`
+  strings so they sort as text; untimed tasks fall to the end of the day.
+- **⚠️ Conflict warnings** — `Scheduler.detect_conflicts()` compares every pair of
+  timed, not-done tasks and flags any whose time windows overlap — *across pets too*
+  (the owner can't be in two places at once). It catches overlapping durations, not
+  just identical start times, and warns rather than auto-resolving.
+- **🔁 Daily & weekly recurrence** — completing a recurring task
+  (`Pet.complete_task()` → `Task.next_occurrence()`) marks it done and automatically
+  queues a fresh instance for the next due date. One-off (`once`) tasks never recur.
+- **🔍 Filtering** — by pet (`filter_by_pet`) and by completion status
+  (`filter_by_status`), so the owner can narrow a busy day to just what matters.
+- **🐾 Multi-pet, multi-task model** — an `Owner` owns many `Pet`s, each owning many
+  `Task`s; `Owner.get_all_tasks()` flattens them into one list for the scheduler.
+- **✅ Tested** — 24 automated tests cover sorting, recurrence, conflicts, filtering,
+  and edge cases (see [Testing PawPal+](#-testing-pawpal)).
+
 ## Getting started
 
 ### Setup
@@ -41,64 +63,6 @@ pip install -r requirements.txt
 5. Add tests to verify key behaviors.
 6. Connect your logic to the Streamlit UI in `app.py`.
 7. Refine UML so it matches what you actually built.
-
-## 🖥️ Sample Output
-
-Sample of the CLI output produced by running `python3 main.py`:
-
-```
-====================================================
-Today's Schedule for Ogenna
-Time available today: 120 min
-====================================================
-
-Tasks as entered (unsorted):
-----------------------------------------------------
-  [ ] 17:30  Fetch / enrichment    20 min  (Biscuit, low)
-  [ ] 08:00  Morning walk          30 min  (Biscuit, high)
-  [ ] 12:00  Feeding               10 min  (Biscuit, high)
-  [✓] 09:15  Litter box cleaning   15 min  (Mittens, medium)
-  [ ] 08:10  Feeding                5 min  (Mittens, high)
-
-Sorted by time (sort_by_time):
-----------------------------------------------------
-  [ ] 08:00  Morning walk          30 min  (Biscuit, high)
-  [ ] 08:10  Feeding                5 min  (Mittens, high)
-  [✓] 09:15  Litter box cleaning   15 min  (Mittens, medium)
-  [ ] 12:00  Feeding               10 min  (Biscuit, high)
-  [ ] 17:30  Fetch / enrichment    20 min  (Biscuit, low)
-
-Conflict check (detect_conflicts):
-----------------------------------------------------
-  ⚠️  Conflict: 'Morning walk' (Biscuit, 08:00) overlaps 'Feeding' (Mittens, 08:10)
-
-Filtered to Biscuit (filter_by_pet):
-----------------------------------------------------
-  [ ] 17:30  Fetch / enrichment    20 min  (Biscuit, low)
-  [ ] 08:00  Morning walk          30 min  (Biscuit, high)
-  [ ] 12:00  Feeding               10 min  (Biscuit, high)
-
-Still to do (filter_by_status done=False):
-----------------------------------------------------
-  [ ] 17:30  Fetch / enrichment    20 min  (Biscuit, low)
-  [ ] 08:00  Morning walk          30 min  (Biscuit, high)
-  [ ] 12:00  Feeding               10 min  (Biscuit, high)
-  [ ] 08:10  Feeding                5 min  (Mittens, high)
-
-Already done (filter_by_status done=True):
-----------------------------------------------------
-  [✓] 09:15  Litter box cleaning   15 min  (Mittens, medium)
-
-====================================================
-Recurring tasks (complete_task auto-queues the next one)
-====================================================
-
-Before completing: Biscuit has 4 tasks.
-  Completing 'Daily walk' (due 2026-07-04, daily)...
-After completing:  Biscuit has 5 tasks.
-  Original is now done: True
-  Auto-queued next instance due: 2026-07-05 (done=False)
-```
 
 ## 🧪 Testing PawPal+
 
@@ -184,12 +148,97 @@ The final class diagram for the logic layer lives at
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+PawPal+ ships with two front ends over the same logic layer: an interactive
+**Streamlit app** (`app.py`) and a **CLI demo** (`main.py`).
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+### Streamlit app — what you can do
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+Launch it with `streamlit run app.py`, then:
+
+1. **Add an owner and pet** — enter the owner's name, then a pet's name and species
+   and click **Add pet**.
+2. **Add care tasks** — for the selected pet, set a title, duration, priority, and
+   category. Optionally give it a **start time** (untimed tasks are allowed) and choose
+   how often it **repeats** (once / daily / weekly), then click **Add task**.
+3. **View today's schedule** — the app builds a `Scheduler` from every pet's tasks and
+   renders them in a table, **sorted chronologically** (`sort_by_time()`), with a
+   done marker, time, pet, duration, priority, and recurrence.
+4. **See conflict warnings** — if two timed tasks overlap, an amber `st.warning`
+   appears with a count and a plain-language list of each clash (from
+   `detect_conflicts()`); when nothing clashes you get a green "no conflicts" success.
+5. **Filter the view** — narrow the table by pet and by status (To do / Done / All).
+6. **Mark a task done** — completing a daily/weekly task shows a success message and
+   **auto-queues its next occurrence** (`Pet.complete_task()`).
+
+### Example workflow
+
+> Add owner **Ogenna** → add pet **Biscuit** (dog) → add a **08:00 Morning walk**
+> and a **08:10 Feeding** for **Mittens** → open *Today's Schedule*: the two tasks are
+> sorted earliest-first and PawPal+ flags the 08:00/08:10 overlap as a conflict → add a
+> **daily** walk and click *Mark done* to watch tomorrow's instance appear automatically.
+
+### Key Scheduler behaviors shown
+
+| Behavior | Method | Shown in the demo below |
+|----------|--------|-------------------------|
+| Sorting by time | `sort_by_time()` | Scrambled entry order → chronological output |
+| Conflict warnings | `detect_conflicts()` | 08:00 walk flagged against 08:10 feeding |
+| Filter by pet | `filter_by_pet()` | Just Biscuit's tasks |
+| Filter by status | `filter_by_status()` | Split of still-to-do vs. done |
+| Daily recurrence | `complete_task()` | Completing the daily walk queues 2026-07-05 |
+
+### Sample CLI output (`python main.py`)
+
+```
+====================================================
+Today's Schedule for Ogenna
+Time available today: 120 min
+====================================================
+
+Tasks as entered (unsorted):
+----------------------------------------------------
+  [ ] 17:30  Fetch / enrichment    20 min  (Biscuit, low)
+  [ ] 08:00  Morning walk          30 min  (Biscuit, high)
+  [ ] 12:00  Feeding               10 min  (Biscuit, high)
+  [✓] 09:15  Litter box cleaning   15 min  (Mittens, medium)
+  [ ] 08:10  Feeding                5 min  (Mittens, high)
+
+Sorted by time (sort_by_time):
+----------------------------------------------------
+  [ ] 08:00  Morning walk          30 min  (Biscuit, high)
+  [ ] 08:10  Feeding                5 min  (Mittens, high)
+  [✓] 09:15  Litter box cleaning   15 min  (Mittens, medium)
+  [ ] 12:00  Feeding               10 min  (Biscuit, high)
+  [ ] 17:30  Fetch / enrichment    20 min  (Biscuit, low)
+
+Conflict check (detect_conflicts):
+----------------------------------------------------
+  ⚠️  Conflict: 'Morning walk' (Biscuit, 08:00) overlaps 'Feeding' (Mittens, 08:10)
+
+Filtered to Biscuit (filter_by_pet):
+----------------------------------------------------
+  [ ] 17:30  Fetch / enrichment    20 min  (Biscuit, low)
+  [ ] 08:00  Morning walk          30 min  (Biscuit, high)
+  [ ] 12:00  Feeding               10 min  (Biscuit, high)
+
+Still to do (filter_by_status done=False):
+----------------------------------------------------
+  [ ] 17:30  Fetch / enrichment    20 min  (Biscuit, low)
+  [ ] 08:00  Morning walk          30 min  (Biscuit, high)
+  [ ] 12:00  Feeding               10 min  (Biscuit, high)
+  [ ] 08:10  Feeding                5 min  (Mittens, high)
+
+Already done (filter_by_status done=True):
+----------------------------------------------------
+  [✓] 09:15  Litter box cleaning   15 min  (Mittens, medium)
+
+====================================================
+Recurring tasks (complete_task auto-queues the next one)
+====================================================
+
+Before completing: Biscuit has 4 tasks.
+  Completing 'Daily walk' (due 2026-07-04, daily)...
+After completing:  Biscuit has 5 tasks.
+  Original is now done: True
+  Auto-queued next instance due: 2026-07-05 (done=False)
+```
