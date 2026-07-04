@@ -15,10 +15,27 @@ These are the three things a user should be able to do in PawPal+:
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
 
+My initial UML used five classes, each with a single clear responsibility:
+
+- **Owner** — represents the person using the app. Holds the owner's name, the time they have available for the day (`available_minutes`), their care `preferences`, and the list of pets they own. Responsible for managing pets (`add_pet`, `get_pets`) and setting the daily time budget (`set_available_time`).
+- **Pet** — represents an animal being cared for. Holds the pet's name, species, breed, and its own list of care tasks. Responsible for managing those tasks (`add_task`, `remove_task`, `get_tasks`).
+- **Task** — represents a single unit of care (walk, feeding, meds, grooming, enrichment). Holds its name, duration, priority, category, and a done flag. Responsible for comparing itself to other tasks (`is_higher_priority_than`) and marking itself complete (`mark_done`).
+- **Scheduler** — the logic engine. Takes the candidate tasks plus the owner's constraints (time, preferences) and is responsible for sorting (`sort_tasks`), filtering to fit the time budget (`filter_by_time`), producing the plan (`generate_plan`), and explaining its choices (`explain`).
+- **DailyPlan** — the output the user sees. Holds the scheduled tasks, the tasks that were skipped, and the date. Responsible for reporting total time (`total_time`) and formatting a human-readable summary (`summary`).
+
+The key design decision was separating the **data** (Owner / Pet / Task) from the **logic** (Scheduler) and the **output** (DailyPlan), so the scheduling rules can be unit-tested without touching the Streamlit UI.
+
 **b. Design changes**
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
+
+Yes — after generating the skeleton I had my AI assistant review `pawpal_system.py` for missing relationships and logic bottlenecks. Two changes came out of that review:
+
+1. **Added a `PRIORITY_ORDER` ranking constant.** Originally `priority` was a free-form string, which left `is_higher_priority_than` and `sort_tasks` with no defined ordering (and risked inconsistent comparisons). I added a module-level `{"low": 1, "medium": 2, "high": 3}` map so priority comparison and sorting have a single, consistent source of truth.
+2. **Moved the scheduling explanation onto `DailyPlan` (new `reasoning` attribute).** Originally `Scheduler.explain()` returned the reasoning as a separate string, which could drift out of sync with the plan it described. Storing the explanation on the `DailyPlan` it belongs to keeps the plan and its justification together. I updated the UML to match.
+
+I considered, but deliberately did **not** make, two other changes to avoid unnecessary complexity: adding start-time slots to tasks (the README sample shows clock times, but I'll add this only if the scheduler needs true time-slotting), and collapsing the duplicated `available_minutes`/`preferences` between `Owner` and `Scheduler` (the duplication keeps the `Scheduler` decoupled and easy to test).
 
 ---
 
